@@ -21,18 +21,8 @@
     body { font-family: 'Outfit', sans-serif; background: #f8fafc; color: #334155; }
     .hidden { display: none !important; }
     .glass-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 1.5rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
-    
-    /* Animations */
     .fade-in { animation: fadeIn 0.4s ease-out forwards; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-
-    /* Print styling */
-    @media print {
-      body * { visibility: hidden; }
-      #certificatePreview, #certificatePreview * { visibility: visible; }
-      #certificatePreview { position: absolute; left: 0; top: 0; width: 100%; }
-      .no-print { display: none !important; }
-    }
   </style>
 </head>
 <body class="antialiased selection:bg-brand-500 selection:text-white">
@@ -51,7 +41,6 @@
 
   <!-- APP SHELL -->
   <div id="appView" class="hidden min-h-screen flex flex-col bg-slate-50">
-    <!-- Topbar -->
     <header class="bg-white border-b border-slate-200 sticky top-0 z-10 px-6 h-20 flex items-center justify-between shadow-sm">
       <div class="flex items-center gap-4">
         <div class="w-10 h-10 bg-brand-600 text-white rounded-xl flex items-center justify-center text-lg">
@@ -115,7 +104,6 @@
       <!-- Feedback & Action Area -->
       <div class="w-full md:w-1/2 flex flex-col gap-6">
         
-        <!-- Feedback Box -->
         <div id="feedbackBox" class="glass-panel p-6 lg:p-8 hidden">
           <div id="feedbackIcon" class="w-12 h-12 rounded-full flex items-center justify-center text-xl mb-4"></div>
           <h3 id="feedbackTitle" class="text-xl font-extrabold text-slate-800 mb-2">Verification Status</h3>
@@ -123,26 +111,9 @@
           <ul id="mismatchList" class="text-sm text-red-600 list-disc list-inside mb-4 space-y-1 hidden"></ul>
           
           <button id="generateBtn" class="hidden w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3.5 rounded-xl transition-all shadow-md flex justify-center items-center gap-2">
-            <i class="fas fa-file-signature"></i> Generate & Issue Certificate
+            <i class="fas fa-download"></i> Generate & Download Certificate (PDF)
           </button>
-        </div>
-
-        <!-- Certificate Preview (Simplified Mockup) -->
-        <div id="certificatePreview" class="glass-panel p-8 bg-white border-4 border-double border-slate-200 text-center hidden flex-col items-center relative min-h-[400px]">
-          <h1 class="text-2xl font-serif font-bold text-slate-800 uppercase tracking-widest mb-1">School Leaving Certificate</h1>
-          <p class="text-xs text-slate-500 uppercase font-bold tracking-widest border-b border-slate-200 pb-4 mb-6 w-full">IBFS Education System</p>
-          
-          <div class="text-left w-full space-y-3 font-serif text-slate-700 text-sm leading-relaxed flex-1">
-            <p>This is to certify that <strong id="certName" class="uppercase text-slate-900 border-b border-slate-400 px-2 inline-block min-w-[200px]"></strong></p>
-            <p>Son/Daughter of <strong id="certFather" class="uppercase text-slate-900 border-b border-slate-400 px-2 inline-block min-w-[200px]"></strong></p>
-            <p>G.R. Number <strong id="certGr" class="uppercase text-slate-900 border-b border-slate-400 px-2 inline-block min-w-[100px]"></strong> attended this school.</p>
-            <p>Date of Birth: <strong id="certDob" class="uppercase text-slate-900 border-b border-slate-400 px-2 inline-block min-w-[150px]"></strong></p>
-          </div>
-          
-          <div class="flex justify-between w-full mt-12 pt-6 border-t border-slate-200 no-print">
-             <button class="text-slate-500 font-bold hover:text-slate-800" onclick="hidePreview()"><i class="fas fa-arrow-left"></i> Back</button>
-             <button class="bg-brand-600 text-white px-4 py-2 rounded font-bold hover:bg-brand-700" onclick="window.print()"><i class="fas fa-print"></i> Print Now</button>
-          </div>
+          <div id="downloadStatus" class="hidden mt-4 text-sm font-bold text-center text-slate-600"></div>
         </div>
 
       </div>
@@ -152,7 +123,6 @@
 
   <script>
     // --- Configuration ---
-    // IMPORTANT: Replace this with the deployed Google Apps Script Web App URL for the API
     const API_URL = "https://script.google.com/macros/s/AKfycbzrcDptT72e1HEen7VxJY9xMi7V2PU_ksS9P5-rUZeavFD1tfH7h1gjrneUB7DPhGZg/exec"; 
     
     const CONFIG = {
@@ -162,7 +132,6 @@
     const STORAGE_KEY = "ibfs_cert_app_user";
     let state = { user: null, verifiedStudentData: null };
 
-    // --- Elements ---
     const $ = id => document.getElementById(id);
     const box = $('feedbackBox');
     const fIcon = $('feedbackIcon');
@@ -170,13 +139,12 @@
     const fMsg = $('feedbackMessage');
     const mList = $('mismatchList');
     const genBtn = $('generateBtn');
+    const dlStatus = $('downloadStatus');
 
-    // --- Events ---
     $('verifyForm').addEventListener('submit', handleVerify);
     $('generateBtn').addEventListener('click', handleIssue);
     $('logoutBtn').addEventListener('click', handleLogout);
 
-    // --- SSO & Initialization ---
     async function init() {
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token");
@@ -221,7 +189,6 @@
     function renderApp() {
       $('loginView').classList.add('hidden');
       $('appView').classList.remove('hidden');
-      
       const u = state.user;
       $('userNameDisplay').innerText = u.name || (u.email ? u.email.split('@')[0] : "User");
       $('userRoleDisplay').innerText = u.appRole || u.role || "User";
@@ -232,10 +199,8 @@
       window.location.reload();
     }
 
-    // --- Verification Logic ---
     async function handleVerify(e) {
       e.preventDefault();
-      
       const payload = {
         action: 'verify',
         grNo: $('vfGrNo').value.trim(),
@@ -250,21 +215,15 @@
       const btn = $('verifyBtn');
       btn.disabled = true;
       btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Verifying...`;
-      
       box.classList.add('hidden');
-      $('certificatePreview').classList.add('hidden');
+      dlStatus.classList.add('hidden');
 
       try {
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
+        const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await res.json();
-        
         showFeedback(result);
-        
       } catch (err) {
-        showFeedback({ status: 'error', message: 'API Connection failed. Ensure the Google Apps Script Web App URL is correct.' });
+        showFeedback({ status: 'error', message: 'API Connection failed.' });
       } finally {
         btn.disabled = false;
         btn.innerHTML = `<i class="fas fa-search"></i> Verify Student Data`;
@@ -282,10 +241,9 @@
         fIcon.innerHTML = '<i class="fas fa-check-circle"></i>';
         fTitle.innerText = "Data Verified Successfully!";
         fTitle.className = "text-xl font-extrabold text-green-700 mb-2";
-        fMsg.innerText = "All fields match our database records. You can now generate the certificate.";
+        fMsg.innerText = "All fields match our database records. You can now download the PDF certificate.";
         fMsg.className = "text-sm font-medium mb-4 text-green-600";
         genBtn.classList.remove('hidden');
-        
         state.verifiedStudentData = result.data;
       } else {
         fIcon.className = 'w-12 h-12 rounded-full flex items-center justify-center text-2xl mb-4 bg-red-100 text-red-600';
@@ -306,52 +264,48 @@
       }
     }
 
-    // --- Issuance Logic ---
     async function handleIssue() {
       if (!state.verifiedStudentData) return;
-      
       const payload = {
         action: 'issue',
         grNo: state.verifiedStudentData['GR No'] || $('vfGrNo').value.trim(),
-        userEmail: state.user.email || 'Unknown User'
+        userEmail: state.user.email || 'Unknown User',
+        studentData: state.verifiedStudentData
       };
 
       genBtn.disabled = true;
-      genBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Processing...`;
+      genBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Generating PDF... (This may take a moment)`;
+      dlStatus.classList.remove('hidden');
+      dlStatus.innerText = "Requesting PDF generation from server...";
+      dlStatus.className = "mt-4 text-sm font-bold text-center text-blue-600";
 
       try {
-        const res = await fetch(API_URL, {
-          method: 'POST',
-          body: JSON.stringify(payload)
-        });
+        const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify(payload) });
         const result = await res.json();
         
-        if (result.status === 'success') {
-          showCertificatePreview(state.verifiedStudentData);
+        if (result.status === 'success' && result.pdfBase64) {
+          dlStatus.innerText = "Download Starting...";
+          dlStatus.className = "mt-4 text-sm font-bold text-center text-green-600";
+          
+          const a = document.createElement('a');
+          a.href = "data:application/pdf;base64," + result.pdfBase64;
+          a.download = result.filename || "Certificate.pdf";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          
+          setTimeout(() => { dlStatus.innerText = "PDF Downloaded successfully!"; }, 1000);
         } else {
-          alert('Failed to log certificate issuance: ' + result.message);
+          dlStatus.innerText = "Failed to generate certificate: " + result.message;
+          dlStatus.className = "mt-4 text-sm font-bold text-center text-red-600";
         }
       } catch (err) {
-        alert('Network error while issuing certificate.');
+        dlStatus.innerText = "Network error while generating certificate.";
+        dlStatus.className = "mt-4 text-sm font-bold text-center text-red-600";
       } finally {
         genBtn.disabled = false;
-        genBtn.innerHTML = `<i class="fas fa-file-signature"></i> Generate & Issue Certificate`;
+        genBtn.innerHTML = `<i class="fas fa-download"></i> Generate & Download Certificate (PDF)`;
       }
-    }
-
-    function showCertificatePreview(data) {
-      box.classList.add('hidden');
-      $('certificatePreview').classList.remove('hidden');
-      
-      $('certName').innerText = data['Name of Student'] || $('vfName').value;
-      $('certFather').innerText = data['Father Name'] || $('vfFather').value;
-      $('certGr').innerText = data['GR No'] || $('vfGrNo').value;
-      $('certDob').innerText = data['Date of Birth in words'] || data['Date of Birth'] || $('vfDob').value;
-    }
-
-    function hidePreview() {
-      $('certificatePreview').classList.add('hidden');
-      box.classList.remove('hidden');
     }
 
     init();
